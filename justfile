@@ -20,13 +20,13 @@ run name *args:
 run-all *args:
     just x run-all {{ args }}
 
-# 给指定包打 patch 版本 tag: just tag <name>
-tag name:
-    just x tag {{ name }}
+# 给指定包打 patch 版本 tag: just tag <name> [--minor] [--force]
+tag name *flags:
+    just x tag {{ name }} {{ flags }}
 
-# 给所有包打 patch 版本 tag
-tag-all:
-    just x tag-all
+# 给所有包打 patch 版本 tag: just tag-all [--minor] [--force]
+tag-all *flags:
+    just x tag-all {{ flags }}
 
 ########################################
 # 以下是各包的 fmt/lint/fix/test 四件套
