@@ -1,0 +1,18 @@
+# https://just.systems
+
+# 默认列出可用命令
+default:
+    just --list
+
+fmt:
+    go fmt ./...
+
+lint:
+    go vet ./...
+    golangci-lint run ./...
+
+fix:
+    golangci-lint run --fix ./...
+
+test:
+    go test -race ./...

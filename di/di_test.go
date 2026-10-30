@@ -106,12 +106,12 @@ func TestRegisterInvalid(t *testing.T) {
 	}{
 		{"非函数", 42, "需要构造函数"},
 		{"nil", nil, "需要构造函数"},
-		{"变参函数", func(xs ...int) int { return 0 }, "变参"},
+		{"变参函数", func(_ ...int) int { return 0 }, "变参"},
 		{"无返回值", func() {}, "必须是 func(deps...) T 或 func(deps...) (T, error)"},
 		{"仅返回 error", func() error { return nil }, "缺少提供类型"},
 		{"第一个返回值是 error", func() (error, error) { return nil, nil }, "缺少提供类型"},
 		{"第二个返回值不是 error", func() (int, int) { return 0, 0 }, "第二个返回值必须是 error"},
-		{"返回值过多", func() (int, error, string) { return 0, nil, "" }, "必须是 func(deps...) T 或 func(deps...) (T, error)"},
+		{"返回值过多", func() (int, string, error) { return 0, "", nil }, "必须是 func(deps...) T 或 func(deps...) (T, error)"},
 		{"返回裸切片", func() []kvStore { return nil }, "不能注册裸切片"},
 	}
 	for _, tc := range cases {
@@ -202,8 +202,8 @@ func TestFreezeCycle(t *testing.T) {
 	type nodeB struct{}
 
 	c := New()
-	require.NoError(t, c.Register(func(b *nodeB) *nodeA { return &nodeA{} }))
-	require.NoError(t, c.Register(func(a *nodeA) *nodeB { return &nodeB{} }))
+	require.NoError(t, c.Register(func(_ *nodeB) *nodeA { return &nodeA{} }))
+	require.NoError(t, c.Register(func(_ *nodeA) *nodeB { return &nodeB{} }))
 
 	require.ErrorContains(t, c.Freeze(), "*di.nodeA -> *di.nodeB -> *di.nodeA")
 }
@@ -453,7 +453,7 @@ func TestGroupEmpty(t *testing.T) {
 func TestGroupCycle(t *testing.T) {
 	c := New()
 	// groupUser 依赖 []kvStore，候选实现又依赖 groupUser → 应报依赖环
-	require.NoError(t, c.Register(func(u *groupUser) *memStore { return &memStore{} }))
+	require.NoError(t, c.Register(func(_ *groupUser) *memStore { return &memStore{} }))
 	require.NoError(t, c.Register(newGroupUser))
 
 	require.ErrorContains(t, c.Freeze(), "依赖环")

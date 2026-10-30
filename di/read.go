@@ -28,6 +28,7 @@ func Get[T any](c *Container) (T, bool) {
 	return instance.(T), true
 }
 
+// MustGet 从容器中获取 T 类型的服务实例，未注册时 panic。
 func MustGet[T any](c *Container) T {
 	instance, ok := Get[T](c)
 	if !ok {
