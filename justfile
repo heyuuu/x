@@ -28,6 +28,10 @@ tag name *flags:
 tag-all *flags:
     just x tag-all {{ flags }}
 
+# 按字典序列出所有包的最新版本: just versions
+versions:
+    just x versions
+
 ########################################
 # 以下是各包的 fmt/lint/fix/test 四件套
 ########################################

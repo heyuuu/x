@@ -26,6 +26,7 @@ func newRootCmd() *cobra.Command {
 		newRunAllCmd(),
 		newTagCmd(),
 		newTagAllCmd(),
+		newVersionsCmd(),
 	)
 	return cmd
 }
