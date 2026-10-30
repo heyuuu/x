@@ -86,7 +86,7 @@ func tagPackage(root, name string, minor bool) error {
 
 	tag := fmt.Sprintf("%s/v%s", name, next)
 	if _, err := gitOut(root, "tag", tag); err != nil {
-		return fmt.Errorf("%s：打 tag 失败：%v", name, err)
+		return fmt.Errorf("%s：打 tag 失败：%w", name, err)
 	}
 	fmt.Printf("%s: tagged %s\n", name, tag)
 	return nil
@@ -127,7 +127,7 @@ func gitOut(dir string, args ...string) (string, error) {
 	cmd.Dir = dir
 	out, err := cmd.Output()
 	if err != nil {
-		return "", fmt.Errorf("git %s：%v", strings.Join(args, " "), err)
+		return "", fmt.Errorf("git %s：%w", strings.Join(args, " "), err)
 	}
 	return string(out), nil
 }

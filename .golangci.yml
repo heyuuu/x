@@ -1,0 +1,20 @@
+# golangci-lint v2 配置
+# 文档: https://golangci-lint.run/docs/configuration/
+# 校验: golangci-lint config verify
+
+version: "2"
+
+linters:
+  # standard = errcheck + govet + ineffassign + staticcheck + unused
+  default: standard
+  # 在默认集之上追加少量高信噪比检查
+  enable:
+    - misspell   # 拼写错误
+    - revive     # golint 继任者，导出符号注释等约定
+    - unconvert  # 多余的类型转换
+    - errorlint  # 强制 %w 包装、禁止对 error 做类型断言/比较
+formatters:
+  # golangci-lint fmt 使用的格式化器
+  enable:
+    - gofmt
+    - goimports

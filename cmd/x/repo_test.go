@@ -21,7 +21,9 @@ func TestPackages(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		f.Close()
+		if err := f.Close(); err != nil {
+			t.Fatal(err)
+		}
 	}
 
 	// 布局：di 是包；foo 有 go.mod 是包；bar 没有 go.mod 不是包；

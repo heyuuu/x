@@ -46,7 +46,7 @@ func initPackage(name string) error {
 	c := exec.Command("go", "mod", "init", repoModule+"/"+name)
 	c.Dir = dir
 	if out, err := c.CombinedOutput(); err != nil {
-		return fmt.Errorf("go mod init 执行失败：%v\n%s", err, out)
+		return fmt.Errorf("go mod init 执行失败：%w\n%s", err, out)
 	}
 	fmt.Printf("created package %s (%s)\n", name, repoModule+"/"+name)
 	return nil
