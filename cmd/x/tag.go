@@ -39,13 +39,20 @@ func newTagAllCmd() *cobra.Command {
 }
 
 // tagPackages 给 targets 中的每个包打下一版本的 tag；targets 为空时作用于所有包。
-// 每个 target 必须是已知的包；包目录下的工作区不干净时会拒绝打 tag，
+// 打 tag 前校验整个仓库的工作区必须干净（含未跟踪文件），
 // 以保证 tag 始终对应已提交的状态。包已有版本时，除非 force 为 true，
 // 只有最新 tag 之后包内文件有变更才会打新 tag。
 func tagPackages(targets []string, minor, force bool) error {
 	root, err := rootDir()
 	if err != nil {
 		return err
+	}
+	status, err := gitOut(root, "status", "--porcelain")
+	if err != nil {
+		return err
+	}
+	if status != "" {
+		return fmt.Errorf("工作区不干净，请先提交：\n%s", strings.TrimSpace(status))
 	}
 	names, err := packages(root)
 	if err != nil {
@@ -73,14 +80,6 @@ func tagPackages(targets []string, minor, force bool) error {
 }
 
 func tagPackage(root, name string, minor, force bool) error {
-	dirty, err := gitOut(root, "status", "--porcelain", "--", name)
-	if err != nil {
-		return err
-	}
-	if dirty != "" {
-		return fmt.Errorf("%s：工作区不干净，请先提交", name)
-	}
-
 	tags, err := gitOut(root, "tag", "-l", name+"/v*")
 	if err != nil {
 		return err
