@@ -7,6 +7,7 @@ Go 实验包总仓库（多模块）。开始工作前请先阅读 [README.md](.
 - 每个目录（`cmd/` 除外）都是一个独立的 Go 模块，各自有 `go.mod`，互不依赖，可单独引用。
   - `di/`：依赖注入
   - `store/`：文件存储原语（原子写、JSON 整文件读写、JSONL 行式读写）
+  - `finder/`：目录遍历，返回惰性 `iter.Seq2[FileEntry, error]`
 - `cmd/x/`：仓库管理 CLI 工具 `x`（由 justfile 封装调用），用于初始化包、批量执行命令、打 tag。
 - 根目录 `justfile` 封装所有常用命令。
 

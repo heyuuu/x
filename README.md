@@ -8,6 +8,7 @@ Go 实验包总仓库。
 | --- | --- | --- |
 | `di` | `di` | 依赖注入 |
 | `store` | `store` | 文件存储通用原语：原子写、JSON 整文件读写、JSONL 行式读写 |
+| `finder` | `finder` | 目录遍历，返回惰性 `iter.Seq2[FileEntry, error]` |
 
 ## 版本策略
 
