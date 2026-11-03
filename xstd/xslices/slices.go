@@ -1,0 +1,77 @@
+package xslices
+
+// LastIndex 类似 slices.Index, 不过是反向查找的
+func LastIndex[S ~[]E, E comparable](s S, v E) int {
+	for i := len(s) - 1; i >= 0; i-- {
+		if v == s[i] {
+			return i
+		}
+	}
+	return -1
+}
+
+// LastIndexFunc 类似 slices.IndexFunc, 不过是反向查找的
+func LastIndexFunc[S ~[]E, E any](s S, f func(E) bool) int {
+	for i := len(s) - 1; i >= 0; i-- {
+		if f(s[i]) {
+			return i
+		}
+	}
+	return -1
+}
+
+// Map 逐元素映射为新切片。
+func Map[S ~[]E1, E1 any, E2 any](s S, mapper func(E1) E2) []E2 {
+	if len(s) == 0 {
+		return nil
+	}
+
+	result := make([]E2, len(s))
+	for i, item := range s {
+		result[i] = mapper(item)
+	}
+	return result
+}
+
+// Filter 按谓词过滤
+func Filter[S ~[]E, E any](s S, filter func(E) bool) []E {
+	if len(s) == 0 {
+		return nil
+	}
+
+	result := make([]E, 0, len(s))
+	for _, item := range s {
+		if filter(item) {
+			result = append(result, item)
+		}
+	}
+	return result
+}
+
+// Get 取下标 idx 处的元素，越界时返回零值而不 panic。
+func Get[S ~[]E, E any](s S, idx int) E {
+	if 0 <= idx && idx < len(s) {
+		return s[idx]
+	}
+
+	var zero E
+	return zero
+}
+
+// GetOr 取下标 idx 处的元素，越界时返回 orValue。
+func GetOr[S ~[]E, E any](s S, idx int, orValue E) E {
+	if 0 <= idx && idx < len(s) {
+		return s[idx]
+	}
+
+	return orValue
+}
+
+// GetOrElse 同 GetOr，但兜底值惰性求值：越界时才调用 elseValue。
+func GetOrElse[S ~[]E, E any](s S, idx int, elseValue func() E) E {
+	if 0 <= idx && idx < len(s) {
+		return s[idx]
+	}
+
+	return elseValue()
+}
