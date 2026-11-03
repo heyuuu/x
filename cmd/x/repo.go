@@ -18,7 +18,8 @@ func rootDir() (string, error) {
 		return "", err
 	}
 	for {
-		if fi, err := os.Stat(filepath.Join(dir, ".git")); err == nil && fi.IsDir() {
+		// .git 目录为常规 git 仓库，.git 文件为 git worktree 目录
+		if _, err := os.Stat(filepath.Join(dir, ".git")); err == nil {
 			return dir, nil
 		}
 		parent := filepath.Dir(dir)
