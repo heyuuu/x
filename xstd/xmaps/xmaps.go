@@ -32,33 +32,33 @@ func SortedKeys[M ~map[K]V, K cmp.Ordered, V any](m M) []K {
 	return keys
 }
 
-// GetOrDefault 取 key 对应的值，不存在时返回 defaultValue。
+// GetOr 取 key 对应的值，不存在时返回 orValue。
 // 与直接下标 m[key] 的区别：能区分"存的是零值"与"不存在"。
-func GetOrDefault[M ~map[K]V, K comparable, V any](m M, key K, defaultValue V) V {
+func GetOr[M ~map[K]V, K comparable, V any](m M, key K, orValue V) V {
 	if value, exists := m[key]; exists {
 		return value
 	}
 
-	return defaultValue
+	return orValue
 }
 
-// GetOrElse 同 GetOrDefault，但默认值惰性求值：key 不存在时才调用 defaultValue。
-func GetOrElse[M ~map[K]V, K comparable, V any](m M, key K, defaultValue func() V) V {
+// GetOrElse 同 GetOr，但默认值惰性求值：key 不存在时才调用 elseValue。
+func GetOrElse[M ~map[K]V, K comparable, V any](m M, key K, elseValue func() V) V {
 	if value, exists := m[key]; exists {
 		return value
 	}
 
-	return defaultValue()
+	return elseValue()
 }
 
-// GetOrPut 取 key 对应的值，不存在时调用 defaultValue 计算并写入 m 后返回。
+// GetOrPut 取 key 对应的值，不存在时调用 putValue 计算并写入 m 后返回。
 // m 为 nil 时按原生写语义 panic，不做静默兜底：写 nil map 属程序错误。
-func GetOrPut[M ~map[K]V, K comparable, V any](m M, key K, defaultValue func() V) V {
+func GetOrPut[M ~map[K]V, K comparable, V any](m M, key K, putValue func() V) V {
 	if value, exists := m[key]; exists {
 		return value
 	}
 
-	value := defaultValue()
+	value := putValue()
 	// 此处若 m 为 nil，直接触发原生 nil map panic
 	m[key] = value
 	return value
