@@ -3,6 +3,7 @@ package xslices
 import (
 	"fmt"
 	"slices"
+	"strings"
 	"testing"
 )
 
@@ -108,6 +109,66 @@ func TestFilter(t *testing.T) {
 
 	if got := Filter(ints{1, 2, 3, 4}, even); !slices.Equal(got, []int{2, 4}) {
 		t.Errorf("Filter() 自定义切片类型 = %v, want [2 4]", got)
+	}
+}
+
+func TestFilterMap(t *testing.T) {
+	// 偶数保留并转为字符串，兼顾过滤与类型变换
+	evenStr := func(i int) (string, bool) { return fmt.Sprintf("#%d", i), i%2 == 0 }
+	tests := []struct {
+		name string
+		s    []int
+		f    func(int) (string, bool)
+		want []string
+	}{
+		{"过滤并映射", []int{1, 2, 3, 4}, evenStr, []string{"#2", "#4"}},
+		{"全部保留", []int{2, 4}, evenStr, []string{"#2", "#4"}},
+		{"全部滤掉", []int{1, 3}, evenStr, nil},
+		{"空切片", []int{}, evenStr, nil},
+		{"nil 切片", nil, evenStr, nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := FilterMap(tt.s, tt.f); !slices.Equal(got, tt.want) {
+				t.Errorf("FilterMap(%v) = %v, want %v", tt.s, got, tt.want)
+			}
+		})
+	}
+
+	if got := FilterMap(ints{1, 2}, func(i int) (int, bool) { return i * 10, i > 1 }); !slices.Equal(got, []int{20}) {
+		t.Errorf("FilterMap() 自定义切片类型 = %v, want [20]", got)
+	}
+}
+
+func TestFlatMap(t *testing.T) {
+	tests := []struct {
+		name string
+		s    []string
+		f    func(string) []string
+		want []string
+	}{
+		{"映射并展平", []string{"a b", "c"}, strings.Fields, []string{"a", "b", "c"}},
+		// strings.Fields("") 返回 nil，内层空 slice 应被跳过
+		{"内层空 slice 跳过", []string{"a", "", "b"}, strings.Fields, []string{"a", "b"}},
+		{"全部内层为空", []string{"", ""}, strings.Fields, nil},
+		{"空切片", []string{}, strings.Fields, nil},
+		{"nil 切片", nil, strings.Fields, nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := FlatMap(tt.s, tt.f); !slices.Equal(got, tt.want) {
+				t.Errorf("FlatMap(%v) = %v, want %v", tt.s, got, tt.want)
+			}
+		})
+	}
+	// 展平二维切片，内层可为空
+	flatten := func(is []int) []int { return is }
+	if got := FlatMap([][]int{{1, 2}, {}, {3}}, flatten); !slices.Equal(got, []int{1, 2, 3}) {
+		t.Errorf("FlatMap() 展平二维切片 = %v, want [1 2 3]", got)
+	}
+
+	if got := FlatMap(ints{1, 2}, func(i int) []int { return []int{i, -i} }); !slices.Equal(got, []int{1, -1, 2, -2}) {
+		t.Errorf("FlatMap() 自定义切片类型 = %v, want [1 -1 2 -2]", got)
 	}
 }
 

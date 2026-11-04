@@ -53,6 +53,34 @@ func Filter[S ~[]E, E any](s S, filter func(E) bool) []E {
 	return result
 }
 
+// FilterMap 过滤并映射：仅 f 返回 ok 的元素计入结果
+func FilterMap[S ~[]E1, E1 any, E2 any](s S, f func(E1) (E2, bool)) []E2 {
+	if len(s) == 0 {
+		return nil
+	}
+
+	result := make([]E2, 0, len(s))
+	for _, item := range s {
+		if r, ok := f(item); ok {
+			result = append(result, r)
+		}
+	}
+	return result
+}
+
+// FlatMap 映射并展平：将 f 返回的 slice 依次拼接为结果
+func FlatMap[S ~[]E1, E1 any, E2 any](s S, f func(E1) []E2) []E2 {
+	if len(s) == 0 {
+		return nil
+	}
+
+	result := make([][]E2, 0, len(s))
+	for _, item := range s {
+		result = append(result, f(item))
+	}
+	return slices.Concat(result...)
+}
+
 // Unique 去重，保留元素首次出现的顺序，返回新 slice
 func Unique[S ~[]E, E comparable](s S) []E {
 	if len(s) == 0 {
