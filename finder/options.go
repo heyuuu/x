@@ -28,8 +28,11 @@ func OptionIgnoreVCS(ignore bool) Option {
 	}
 }
 
-// OptionFollowLinks 设置跟随符号链接：指向目录的链接按目录下钻，指向文件的按目标类型产出，
-// 断链按链接自身条目产出。仅在沿当前路径成环（回到祖先目录）时停止下钻。默认不跟随。
+// OptionFollowLinks 设置跟随符号链接：条目按目标类型产出（IsDir 以目标为准），指向目录的链接下钻遍历，
+// 断链按链接自身条目产出。产出的路径始终是链接自身的路径（逻辑路径），即链接下的条目以链接路径为前缀
+// （dirlink -> dir 时产出 dirlink/child 而非 dir/child），指向根外的链接 RelPath 也不会出现 ".."。
+// 成环检测在内部按解析后的真实路径进行，仅沿当前递归路径禁止回到祖先，
+// 并行到达同一目录的不同路径都会正常遍历。默认不跟随。
 func OptionFollowLinks() Option {
 	return func(o *options) {
 		o.followLinks = true

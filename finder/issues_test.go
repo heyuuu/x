@@ -35,16 +35,15 @@ func writeFile(t *testing.T, tmp, rel, content string) {
 	}
 }
 
-// TestFindFilesystemRoot：以 "/" 作为遍历根不应产出错误。
-// 现状：TrimSuffix 把 "/" 截成空串，之后 filepath.Rel("", path) 对每个条目都报
-// "Rel: can't make ... relative to"，整个遍历失败（0 条目）。
+// TestFindFilesystemRoot：以 "/" 作为遍历根不应产出错误，
+// filepath.Rel 对文件系统根也能正确计算相对路径。
 func TestFindFilesystemRoot(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip(`windows 上 "/" 不是绝对路径，会走 ErrRelativePath 分支`)
 	}
 
 	// 只检查第一个产出即可暴露问题；不 break 会把整个文件系统走一遍。
-	for _, err := range Find([]string{"/"}, OptionDepth(0)) {
+	for _, err := range Find("/", OptionDepth(0)) {
 		if err != nil {
 			t.Fatalf("遍历文件系统根目录不应报错: %v", err)
 		}
@@ -52,10 +51,8 @@ func TestFindFilesystemRoot(t *testing.T) {
 	}
 }
 
-// TestFindSymlinkRootNotSilentlyEmpty：符号链接作为遍历根不应“既无条目也无错误”地空转。
-// 现状：WalkDir 对根使用 Lstat，符号链接不被视为目录，只回调根自身一次又被跳过，
-// 结果 0 条目 0 错误，调用方无法区分“目标是空目录”和“根本没遍历”。
-// 跟随链接遍历目标、或显式产出错误，两种修复方式本测试都接受。
+// TestFindSymlinkRootNotSilentlyEmpty：符号链接作为遍历根时按链接路径遍历目标内容，
+// 不会“既无条目也无错误”地空转；产出的路径也以链接路径（而非解析后的真实路径）为前缀。
 func TestFindSymlinkRootNotSilentlyEmpty(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("windows 上创建符号链接需要特权")
@@ -69,9 +66,19 @@ func TestFindSymlinkRootNotSilentlyEmpty(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	paths, firstErr := collectPaths(t, []string{link}, nil)
-	if len(paths) == 0 && firstErr == nil {
-		t.Fatalf("符号链接作为根目录不应静默返回空（期望遍历目标 %s 或产出错误）", target)
+	var paths, absPaths []string
+	for entry, err := range Find(link) {
+		if err != nil {
+			t.Fatal(err)
+		}
+		paths = append(paths, entry.RelPath())
+		absPaths = append(absPaths, entry.AbsPath())
+	}
+	if want := []string{"a.txt"}; !slices.Equal(paths, want) {
+		t.Fatalf("got %v, want %v", paths, want)
+	}
+	if want := []string{filepath.Join(link, "a.txt")}; !slices.Equal(absPaths, want) {
+		t.Fatalf("got %v, want %v", absPaths, want)
 	}
 }
 
@@ -91,7 +98,7 @@ func TestDepthPrunesDeepSubtrees(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = os.Chmod(locked, 0o755) })
 
-	paths, firstErr := collectPaths(t, []string{tmp}, []Option{OptionDepth(0)})
+	paths, firstErr := collectPaths(t, tmp, []Option{OptionDepth(0)})
 	if want := []string{"a.txt", "deep"}; !slices.Equal(paths, want) {
 		t.Fatalf("got %v, want %v", paths, want)
 	}

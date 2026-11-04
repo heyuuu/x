@@ -21,11 +21,11 @@ func absDir(t *testing.T, dir string) string {
 	return abs
 }
 
-func collectPaths(t *testing.T, dirs []string, opts []Option) ([]string, error) {
+func collectPaths(t *testing.T, root string, opts []Option) ([]string, error) {
 	t.Helper()
 	var paths []string
 	var firstErr error
-	for entry, err := range Find(dirs, opts...) {
+	for entry, err := range Find(root, opts...) {
 		if err != nil {
 			if firstErr == nil {
 				firstErr = err
@@ -40,89 +40,75 @@ func collectPaths(t *testing.T, dirs []string, opts []Option) ([]string, error) 
 func TestFind(t *testing.T) {
 	tests := []struct {
 		name    string
-		dirs    []string
+		root    string
 		opts    []Option
 		want    []string
 		wantErr bool
 	}{
 		{
-			name:    "default includes files and directories",
-			dirs:    []string{absDir(t, "testdata/basic")},
-			want:    []string{"a.txt", "dir", "dir/b.txt", "dir/sub", "dir/sub/c.txt"},
-			wantErr: false,
+			name: "default includes files and directories",
+			root: absDir(t, "testdata/basic"),
+			want: []string{"a.txt", "dir", "dir/b.txt", "dir/sub", "dir/sub/c.txt"},
 		},
 		{
-			name:    "files",
-			dirs:    []string{absDir(t, "testdata/basic")},
-			opts:    []Option{OptionFiles()},
-			want:    []string{"a.txt", "dir/b.txt", "dir/sub/c.txt"},
-			wantErr: false,
+			name: "files",
+			root: absDir(t, "testdata/basic"),
+			opts: []Option{OptionFiles()},
+			want: []string{"a.txt", "dir/b.txt", "dir/sub/c.txt"},
 		},
 		{
-			name:    "directories",
-			dirs:    []string{absDir(t, "testdata/basic")},
-			opts:    []Option{OptionDirectories()},
-			want:    []string{"dir", "dir/sub"},
-			wantErr: false,
+			name: "directories",
+			root: absDir(t, "testdata/basic"),
+			opts: []Option{OptionDirectories()},
+			want: []string{"dir", "dir/sub"},
 		},
 		{
 			name: "filter",
-			dirs: []string{absDir(t, "testdata/basic")},
+			root: absDir(t, "testdata/basic"),
 			opts: []Option{
 				OptionFilter(func(entry FileEntry) bool { return !strings.HasPrefix(entry.RelPath(), "dir") }),
 			},
-			want:    []string{"a.txt"},
-			wantErr: false,
+			want: []string{"a.txt"},
 		},
 		{
 			// pins：目录被 filter 拒绝时整棵子树剪掉。
 			// filter 只拒绝名为 dir 的目录本身，其子条目（dir/b.txt 等并不匹配该条件）
 			// 也不得出现在结果中。
 			name: "filtered dir prunes subtree",
-			dirs: []string{absDir(t, "testdata/basic")},
+			root: absDir(t, "testdata/basic"),
 			opts: []Option{
 				OptionFilter(func(entry FileEntry) bool {
 					return !entry.IsDir() || entry.Name() != "dir"
 				}),
 			},
-			want:    []string{"a.txt"},
-			wantErr: false,
+			want: []string{"a.txt"},
 		},
 		{
 			// 多个 filter 串联执行，任一不满足即跳过（AND 语义）。
 			name: "multiple filters",
-			dirs: []string{absDir(t, "testdata/basic")},
+			root: absDir(t, "testdata/basic"),
 			opts: []Option{
 				OptionFilter(func(entry FileEntry) bool { return strings.HasSuffix(entry.Name(), ".txt") }),
 				OptionFilter(func(entry FileEntry) bool { return strings.HasPrefix(entry.Name(), "a") }),
 				OptionFilter(func(entry FileEntry) bool { return !entry.IsDir() }),
 			},
-			want:    []string{"a.txt"},
-			wantErr: false,
+			want: []string{"a.txt"},
 		},
 		{
-			name:    "nonexistent dir yields error",
-			dirs:    []string{absDir(t, "testdata/nonexistent")},
-			want:    nil,
+			name:    "nonexistent root yields error",
+			root:    absDir(t, "testdata/nonexistent"),
 			wantErr: true,
 		},
 		{
-			name:    "error does not stop following dirs",
-			dirs:    []string{absDir(t, "testdata/nonexistent"), absDir(t, "testdata/basic")},
-			want:    []string{"a.txt", "dir", "dir/b.txt", "dir/sub", "dir/sub/c.txt"},
-			wantErr: true,
-		},
-		{
-			name:    "relative dir yields error",
-			dirs:    []string{"testdata/basic"},
-			want:    nil,
+			name:    "relative root yields error",
+			root:    "testdata/basic",
 			wantErr: true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			paths, firstErr := collectPaths(t, tt.dirs, tt.opts)
+			paths, firstErr := collectPaths(t, tt.root, tt.opts)
 
 			if !slices.Equal(paths, tt.want) {
 				t.Fatalf("got %v, want %v", paths, tt.want)
@@ -135,6 +121,32 @@ func TestFind(t *testing.T) {
 				t.Fatalf("unexpected err %v", firstErr)
 			}
 		})
+	}
+}
+
+// TestFindDirsFiles pins 住快捷函数只产出对应类型的条目。
+func TestFindDirsFiles(t *testing.T) {
+	root := absDir(t, "testdata/basic")
+
+	var dirs, files []string
+	for entry, err := range FindDirs(root) {
+		if err != nil {
+			t.Fatal(err)
+		}
+		dirs = append(dirs, entry.RelPath())
+	}
+	for entry, err := range FindFiles(root) {
+		if err != nil {
+			t.Fatal(err)
+		}
+		files = append(files, entry.RelPath())
+	}
+
+	if want := []string{"dir", "dir/sub"}; !slices.Equal(dirs, want) {
+		t.Fatalf("FindDirs: got %v, want %v", dirs, want)
+	}
+	if want := []string{"a.txt", "dir/b.txt", "dir/sub/c.txt"}; !slices.Equal(files, want) {
+		t.Fatalf("FindFiles: got %v, want %v", files, want)
 	}
 }
 
@@ -154,7 +166,7 @@ func TestIgnoreVCS(t *testing.T) {
 
 	t.Run("default ignores vcs dirs", func(t *testing.T) {
 		tmp := newFixture(t)
-		paths, firstErr := collectPaths(t, []string{tmp}, nil)
+		paths, firstErr := collectPaths(t, tmp, nil)
 		if firstErr != nil {
 			t.Fatal(firstErr)
 		}
@@ -165,7 +177,7 @@ func TestIgnoreVCS(t *testing.T) {
 
 	t.Run("OptionIgnoreVCS(false) keeps vcs dirs", func(t *testing.T) {
 		tmp := newFixture(t)
-		paths, firstErr := collectPaths(t, []string{tmp}, []Option{OptionIgnoreVCS(false)})
+		paths, firstErr := collectPaths(t, tmp, []Option{OptionIgnoreVCS(false)})
 		if firstErr != nil {
 			t.Fatal(firstErr)
 		}
@@ -176,11 +188,46 @@ func TestIgnoreVCS(t *testing.T) {
 	})
 }
 
-// TestFileEntryFields pins 住 FileEntry 字段的填充，
-// 以及组合的 fs.DirEntry 方法（Name/IsDir/Info）可直接使用。
+// TestReadErrorDoesNotStopSequence pins 住产出错误后序列继续：
+// 子目录不可读产出一个错误，兄弟条目仍正常遍历到。
+func TestReadErrorDoesNotStopSequence(t *testing.T) {
+	skipIfNoFilePerms(t)
+
+	tmp := t.TempDir()
+	writeFile(t, tmp, "a.txt", "")
+	writeFile(t, tmp, "locked/secret.txt", "")
+	writeFile(t, tmp, "z.txt", "")
+	locked := filepath.Join(tmp, "locked")
+	if err := os.Chmod(locked, 0o000); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(locked, 0o755) })
+
+	var paths []string
+	var errCount int
+	for entry, err := range Find(tmp) {
+		if err != nil {
+			errCount++
+			continue
+		}
+		paths = append(paths, entry.RelPath())
+	}
+
+	if errCount != 1 {
+		t.Fatalf("got %d errors, want 1", errCount)
+	}
+	if want := []string{"a.txt", "locked", "z.txt"}; !slices.Equal(paths, want) {
+		t.Fatalf("got %v, want %v", paths, want)
+	}
+}
+
+// TestFileEntryFields pins 住 FileEntry 各字段的填充语义：
+// Name 是条目自身名，AbsPath/RelPath 是逻辑路径，Depth 是相对根的层级（根下条目为 0）。
 func TestFileEntryFields(t *testing.T) {
-	var file, dirEntry FileEntry
-	for entry, err := range Find([]string{absDir(t, "testdata/basic")}, OptionFiles()) {
+	root := absDir(t, "testdata/basic")
+
+	var file, sub FileEntry
+	for entry, err := range Find(root, OptionFiles()) {
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -188,28 +235,20 @@ func TestFileEntryFields(t *testing.T) {
 			file = entry
 		}
 	}
-	for entry, err := range Find([]string{absDir(t, "testdata/basic")}, OptionDirectories()) {
+	for entry, err := range Find(root, OptionDirectories()) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if entry.Name() == "dir" {
-			dirEntry = entry
+		if entry.Name() == "sub" {
+			sub = entry
 		}
 	}
 
-	if file.AbsPath() == "" || file.RelPath() != "a.txt" || file.IsDir() {
+	if file == nil || file.AbsPath() != filepath.Join(root, "a.txt") || file.RelPath() != "a.txt" || file.IsDir() || file.Depth() != 0 {
 		t.Fatalf("file entry filled wrong: %v", file)
 	}
-	if dirEntry.AbsPath() == "" || dirEntry.RelPath() != "dir" || !dirEntry.IsDir() {
-		t.Fatalf("dir entry filled wrong: %v", dirEntry)
-	}
-
-	info, err := file.Info()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if info.Name() != "a.txt" {
-		t.Fatalf("got info name %q, want a.txt", info.Name())
+	if sub == nil || sub.AbsPath() != filepath.Join(root, "dir", "sub") || sub.RelPath() != "dir/sub" || !sub.IsDir() || sub.Depth() != 1 {
+		t.Fatalf("dir entry filled wrong: %v", sub)
 	}
 }
 
@@ -227,7 +266,7 @@ func TestDepthSemantics(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(string(rune('0'+tt.depth)), func(t *testing.T) {
 			paths, err := collectPaths(t,
-				[]string{absDir(t, "testdata/basic")},
+				absDir(t, "testdata/basic"),
 				[]Option{OptionDepth(tt.depth)},
 			)
 			if err != nil {
@@ -242,7 +281,7 @@ func TestDepthSemantics(t *testing.T) {
 
 func TestFindEarlyBreak(t *testing.T) {
 	var count int
-	for _, err := range Find([]string{absDir(t, "testdata/basic")}) {
+	for _, err := range Find(absDir(t, "testdata/basic")) {
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -254,25 +293,9 @@ func TestFindEarlyBreak(t *testing.T) {
 	}
 }
 
-func TestFindMultipleDirs(t *testing.T) {
-	dirs := []string{
-		absDir(t, "testdata/basic/dir/sub"),
-		absDir(t, "testdata/basic/dir"),
-	}
-	var paths []string
-	for entry, err := range Find(dirs) {
-		if err != nil {
-			t.Fatal(err)
-		}
-		paths = append(paths, entry.RelPath())
-	}
-	if !slices.Equal(paths, []string{"c.txt", "b.txt", "sub", "sub/c.txt"}) {
-		t.Fatalf("got %v", paths)
-	}
-}
-
-// TestFollowLinks pins 住符号链接跟随行为：
-// 跟随时目录链接下钻、文件链接按目标类型产出、断链按链接自身产出、成环不无限递归；
+// TestFollowLinks pins 住符号链接行为：
+// 跟随时目录链接下钻且路径按链接路径（逻辑路径）产出、文件链接按目标类型产出、
+// 断链按链接自身产出、成环不无限递归、指向根外的链接 RelPath 不出现 ".."；
 // 默认不跟随（链接不下钻）。
 func TestFollowLinks(t *testing.T) {
 	if runtime.GOOS == "windows" {
@@ -286,6 +309,10 @@ func TestFollowLinks(t *testing.T) {
 		if err := os.Symlink(filepath.Join(tmp, "real"), filepath.Join(tmp, "dirlink")); err != nil {
 			t.Fatal(err)
 		}
+		// 链接名与目标名不同，用于 pin 住 Name 按链接名而非目标名产出。
+		if err := os.Symlink(filepath.Join(tmp, "real"), filepath.Join(tmp, "alias")); err != nil {
+			t.Fatal(err)
+		}
 		if err := os.Symlink(filepath.Join(tmp, "real", "a.txt"), filepath.Join(tmp, "filelink")); err != nil {
 			t.Fatal(err)
 		}
@@ -297,11 +324,11 @@ func TestFollowLinks(t *testing.T) {
 
 	t.Run("default does not follow", func(t *testing.T) {
 		tmp := newFixture(t)
-		paths, err := collectPaths(t, []string{tmp}, nil)
+		paths, err := collectPaths(t, tmp, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
-		want := []string{"brokenlink", "dirlink", "filelink", "real", "real/a.txt"}
+		want := []string{"alias", "brokenlink", "dirlink", "filelink", "real", "real/a.txt"}
 		if !slices.Equal(paths, want) {
 			t.Fatalf("got %v, want %v", paths, want)
 		}
@@ -309,12 +336,56 @@ func TestFollowLinks(t *testing.T) {
 
 	t.Run("follow links", func(t *testing.T) {
 		tmp := newFixture(t)
-		paths, err := collectPaths(t, []string{tmp}, []Option{OptionFollowLinks()})
-		if err != nil {
+		var paths []string
+		var dirlink FileEntry
+		for entry, err := range Find(tmp, OptionFollowLinks()) {
+			if err != nil {
+				t.Fatal(err)
+			}
+			paths = append(paths, entry.RelPath())
+			if entry.Name() == "dirlink" {
+				dirlink = entry
+			}
+		}
+
+		// 目录链接下钻；filelink 按目标（文件）产出；brokenlink 解析失败按链接自身产出；
+		// alias/dirlink 并行到达同一目标目录，各自产出（不判重）。
+		want := []string{
+			"alias", "alias/a.txt",
+			"brokenlink",
+			"dirlink", "dirlink/a.txt",
+			"filelink",
+			"real", "real/a.txt",
+		}
+		if !slices.Equal(paths, want) {
+			t.Fatalf("got %v, want %v", paths, want)
+		}
+
+		// 跟随只影响分类与下钻：IsDir 按目标，Name/AbsPath 按链接自身路径。
+		if dirlink == nil || !dirlink.IsDir() {
+			t.Fatalf("dirlink 应按目标类型视为目录: %v", dirlink)
+		}
+		if want := filepath.Join(tmp, "dirlink"); dirlink.AbsPath() != want {
+			t.Fatalf("dirlink AbsPath got %q, want %q", dirlink.AbsPath(), want)
+		}
+	})
+
+	t.Run("link outside root keeps relPath namespace", func(t *testing.T) {
+		parent := t.TempDir()
+		root := filepath.Join(parent, "root")
+		writeFile(t, root, "in.txt", "")
+		external := filepath.Join(parent, "external")
+		writeFile(t, external, "out.txt", "")
+		if err := os.Symlink(external, filepath.Join(root, "extlink")); err != nil {
 			t.Fatal(err)
 		}
-		// dirlink 按目录下钻；filelink 按目标（文件）产出；brokenlink 解析失败按链接自身产出。
-		want := []string{"brokenlink", "dirlink", "dirlink/a.txt", "filelink", "real", "real/a.txt"}
+
+		paths, firstErr := collectPaths(t, root, []Option{OptionFollowLinks()})
+		if firstErr != nil {
+			t.Fatal(firstErr)
+		}
+		// 链接指向根外也按链接路径产出，RelPath 不会出现 ".."。
+		want := []string{"extlink", "extlink/out.txt", "in.txt"}
 		if !slices.Equal(paths, want) {
 			t.Fatalf("got %v, want %v", paths, want)
 		}
@@ -327,7 +398,7 @@ func TestFollowLinks(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		paths, err := collectPaths(t, []string{tmp}, []Option{OptionFollowLinks()})
+		paths, err := collectPaths(t, tmp, []Option{OptionFollowLinks()})
 		if err != nil {
 			t.Fatal(err)
 		}
