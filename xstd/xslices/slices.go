@@ -1,5 +1,10 @@
 package xslices
 
+import (
+	"cmp"
+	"slices"
+)
+
 // LastIndex 类似 slices.Index, 不过是反向查找的
 func LastIndex[S ~[]E, E comparable](s S, v E) int {
 	for i := len(s) - 1; i >= 0; i-- {
@@ -46,6 +51,53 @@ func Filter[S ~[]E, E any](s S, filter func(E) bool) []E {
 		}
 	}
 	return result
+}
+
+// Unique 去重，保留元素首次出现的顺序，返回新 slice
+func Unique[S ~[]E, E comparable](s S) []E {
+	if len(s) == 0 {
+		return nil
+	}
+
+	seen := make(map[E]struct{}, len(s))
+	result := make([]E, 0, len(s))
+	for _, item := range s {
+		if _, ok := seen[item]; !ok {
+			seen[item] = struct{}{}
+			result = append(result, item)
+		}
+	}
+	return result
+}
+
+// UniqueBy 以 f 计算的 key 判等去重，保留元素首次出现的顺序，返回新 slice
+func UniqueBy[S ~[]E, E any, K comparable](s S, f func(E) K) []E {
+	if len(s) == 0 {
+		return nil
+	}
+
+	seen := make(map[K]struct{}, len(s))
+	result := make([]E, 0, len(s))
+	for _, item := range s {
+		key := f(item)
+		if _, ok := seen[key]; !ok {
+			seen[key] = struct{}{}
+			result = append(result, item)
+		}
+	}
+	return result
+}
+
+// SortedUnique 排序去重，返回排序且去重的 slice
+func SortedUnique[S ~[]E, E cmp.Ordered](s S) []E {
+	if len(s) == 0 {
+		return nil
+	}
+
+	res := slices.Clone(s)
+	slices.Sort(res)
+	res = slices.Compact(res)
+	return res
 }
 
 // Get 取下标 idx 处的元素，越界时返回零值而不 panic。

@@ -111,6 +111,100 @@ func TestFilter(t *testing.T) {
 	}
 }
 
+func TestUnique(t *testing.T) {
+	tests := []struct {
+		name string
+		s    []int
+		want []int
+	}{
+		// 与排序去重的区别所在：保留首次出现的顺序
+		{"重复元素保留首次出现", []int{3, 1, 3, 2, 1}, []int{3, 1, 2}},
+		{"无重复", []int{1, 2, 3}, []int{1, 2, 3}},
+		{"全部重复", []int{7, 7, 7}, []int{7}},
+		{"空切片", []int{}, nil},
+		{"nil 切片", nil, nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := Unique(tt.s); !slices.Equal(got, tt.want) {
+				t.Errorf("Unique(%v) = %v, want %v", tt.s, got, tt.want)
+			}
+		})
+	}
+	// 空输入返回 nil
+	if got := Unique([]int{}); got != nil {
+		t.Errorf("Unique() 空切片 = %v, want nil", got)
+	}
+
+	if got := Unique(ints{3, 1, 3}); !slices.Equal(got, []int{3, 1}) {
+		t.Errorf("Unique() 自定义切片类型 = %v, want [3 1]", got)
+	}
+}
+
+func TestUniqueBy(t *testing.T) {
+	byLen := func(s string) int { return len(s) }
+	tests := []struct {
+		name string
+		s    []string
+		f    func(string) int
+		want []string
+	}{
+		{"key 相同保留首次出现", []string{"a", "b", "cc", "d", "ee"}, byLen, []string{"a", "cc"}},
+		{"key 各不相同", []string{"a", "bb", "ccc"}, byLen, []string{"a", "bb", "ccc"}},
+		{"全部同 key", []string{"a", "b", "c"}, byLen, []string{"a"}},
+		{"空切片", []string{}, byLen, nil},
+		{"nil 切片", nil, byLen, nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := UniqueBy(tt.s, tt.f); !slices.Equal(got, tt.want) {
+				t.Errorf("UniqueBy(%v) = %v, want %v", tt.s, got, tt.want)
+			}
+		})
+	}
+	// 元素本身不可比较时也能按 key 去重
+	byFirst := func(s []int) int { return s[0] }
+	got := UniqueBy([][]int{{1, 2}, {3}, {1, 5}, {4}}, byFirst)
+	if len(got) != 3 || !slices.Equal(got[0], []int{1, 2}) || !slices.Equal(got[1], []int{3}) || !slices.Equal(got[2], []int{4}) {
+		t.Errorf("UniqueBy() 不可比较元素 = %v, want [[1 2] [3] [4]]", got)
+	}
+
+	if got := UniqueBy(ints{3, 1, 2, 4}, func(i int) bool { return i%2 == 0 }); !slices.Equal(got, []int{3, 2}) {
+		t.Errorf("UniqueBy() 自定义切片类型 = %v, want [3 2]", got)
+	}
+}
+
+func TestSortedUnique(t *testing.T) {
+	tests := []struct {
+		name string
+		s    []int
+		want []int
+	}{
+		{"排序并去重", []int{3, 1, 3, 2, 1}, []int{1, 2, 3}},
+		{"已排序无重复", []int{1, 2, 3}, []int{1, 2, 3}},
+		{"全部重复", []int{7, 7, 7}, []int{7}},
+		{"空切片", []int{}, nil},
+		{"nil 切片", nil, nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := SortedUnique(tt.s); !slices.Equal(got, tt.want) {
+				t.Errorf("SortedUnique(%v) = %v, want %v", tt.s, got, tt.want)
+			}
+		})
+	}
+	// 不修改原 slice
+	origin := []int{3, 1, 2}
+	SortedUnique(origin)
+	if !slices.Equal(origin, []int{3, 1, 2}) {
+		t.Errorf("SortedUnique() 修改了原 slice: %v", origin)
+	}
+
+	if got := SortedUnique(ints{2, 1, 2}); !slices.Equal(got, []int{1, 2}) {
+		t.Errorf("SortedUnique() 自定义切片类型 = %v, want [1 2]", got)
+	}
+}
+
 func TestGet(t *testing.T) {
 	tests := []struct {
 		name string
