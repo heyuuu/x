@@ -96,6 +96,14 @@ func LoadSection[T any](file string, section string) (T, error) {
 	return v, nil
 }
 
+// LoadSectionOrZero 行为同 LoadSection，但一切读失败形态
+// （文件不存在 / 坏 JSON / 节缺失 / 节格式坏）返回 T 的零值而非报错——
+// 选此变体即显式声明不关心失败原因、也不需要非零兜底。
+func LoadSectionOrZero[T any](file string, section string) T {
+	var zero T
+	return LoadSectionOrDefault(file, section, zero)
+}
+
 // LoadSectionOrDefault 行为同 LoadSection，但一切读失败形态
 // （文件不存在 / 坏 JSON / 节缺失 / 节格式坏）返回 defaultValue 而非报错——
 // 选此变体即显式声明不关心失败原因。
