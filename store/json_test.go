@@ -1,6 +1,7 @@
 package store
 
 import (
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -21,7 +22,8 @@ func TestSaveAndLoadJson(t *testing.T) {
 
 	// 缺失文件返回哨兵错误
 	_, err := LoadJSON[conf](path)
-	require.ErrorIs(t, err, ErrFileMissing, "缺失文件应返回 ErrFileMissing")
+	require.ErrorIs(t, err, ErrStoreMissing, "缺失文件应返回 ErrStoreMissing")
+	assert.True(t, IsStoreMissing(err), "IsStoreMissing 应识别缺失文件")
 
 	want := conf{Name: "xdiff", N: 3}
 	require.NoError(t, SaveJSON(path, want), "SaveJSON 失败")
@@ -29,11 +31,19 @@ func TestSaveAndLoadJson(t *testing.T) {
 	require.NoError(t, err, "LoadJSON 失败")
 	assert.Equal(t, want, got, "roundtrip 不一致")
 
-	// 坏 JSON 返回解析错误（非哨兵）
+	// 坏 JSON 返回反序列化哨兵错误
 	require.NoError(t, os.WriteFile(path, []byte("{oops"), 0644))
 	_, err = LoadJSON[conf](path)
-	require.Error(t, err, "坏 JSON 应返回解析错误")
-	assert.NotErrorIs(t, err, ErrFileMissing, "坏 JSON 不应返回哨兵错误")
+	require.ErrorIs(t, err, ErrUnmarshalFailed, "坏 JSON 应返回 ErrUnmarshalFailed")
+
+	// 路径是目录（存在但读不了）返回读取失败哨兵错误
+	_, err = LoadJSON[conf](dir)
+	require.ErrorIs(t, err, ErrStoreLoadFailed, "读目录应返回 ErrStoreLoadFailed")
+
+	// 序列化失败的值返回序列化哨兵错误
+	err = SaveJSON(path, math.NaN())
+	require.ErrorIs(t, err, ErrMarshalFailed, "NaN 应返回 ErrMarshalFailed")
+	assert.True(t, IsMarshalFailed(err), "IsMarshalFailed 应识别序列化失败")
 }
 
 // 稳定性契约：同样的数据（无论 map 写入顺序、nil slice/map）每次写出字节完全一致。

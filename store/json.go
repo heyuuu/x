@@ -4,8 +4,6 @@ import (
 	"encoding/json/jsontext"
 	"encoding/json/v2"
 	"errors"
-	"fmt"
-	"io/fs"
 	"os"
 )
 
@@ -18,25 +16,27 @@ var saveOpts = []json.Options{json.Deterministic(true), jsontext.Multiline(true)
 func SaveJSON(path string, v any) error {
 	data, err := json.Marshal(v, saveOpts...)
 	if err != nil {
-		return fmt.Errorf("序列化 JSON 失败: %w", err)
+		return jsonMarshalFailed(path, err)
 	}
 	return WriteFileAtomic(path, append(data, '\n'), 0644)
 }
 
 // LoadJSON 读取并反序列化 path 的 JSON 内容。
-// 文件缺失返回 (零值, ErrFileMissing)；解析失败原样上抛，由调用方决定降级策略。
+// 失败形态经哨兵错误上抛，由调用方决定降级策略：
+// 文件缺失 → ErrStoreMissing；读取失败 → ErrStoreLoadFailed；解析失败 → ErrUnmarshalFailed。
 func LoadJSON[T any](path string) (T, error) {
 	var zero T
 	data, err := os.ReadFile(path)
 	if err != nil {
-		if errors.Is(err, fs.ErrNotExist) {
-			return zero, ErrFileMissing
+		if errors.Is(err, os.ErrNotExist) {
+			return zero, jsonStoreMissing(path)
 		}
-		return zero, fmt.Errorf("读取 JSON 文件失败: %w", err)
+		return zero, jsonStoreLoadFailed(path)
 	}
+
 	var v T
 	if err := json.Unmarshal(data, &v); err != nil {
-		return zero, fmt.Errorf("解析 JSON 文件失败: %w", err)
+		return zero, jsonUnmarshalFailed(path, err)
 	}
 	return v, nil
 }

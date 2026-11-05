@@ -47,7 +47,7 @@ func TestWriteFileAtomic(t *testing.T) {
 func TestWriteOpsCreateParentDir(t *testing.T) {
 	dir := t.TempDir()
 
-	require.NoError(t, AppendJsonl(filepath.Join(dir, "a/b/c/usage.jsonl"), map[string]int{"x": 1}), "AppendJsonl 应自动建父目录")
+	require.NoError(t, SaveSection(filepath.Join(dir, "a/b/c/config.json"), "items", []string{"x"}), "SaveSection 应自动建父目录")
 	require.NoError(t, SaveJSON(filepath.Join(dir, "d/e/config.json"), map[string]int{"x": 1}), "SaveJSON 应自动建父目录")
 	require.NoError(t, WriteFileAtomic(filepath.Join(dir, "f/g/raw.bin"), []byte("x"), 0644), "WriteFileAtomic 应自动建父目录")
 }

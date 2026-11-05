@@ -3,6 +3,8 @@ package store
 import (
 	"encoding/json/jsontext"
 	"encoding/json/v2"
+	"errors"
+	"math"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -23,14 +25,15 @@ func TestLoadSection(t *testing.T) {
 		content string // 空 = 文件不存在
 		section string
 		want    []string
+		errIs   error // 非 nil 时断言 errors.Is
 	}{
-		{"文件不存在", "", "items", nil},
-		{"文件坏JSON", "{bad", "items", nil},
-		{"节缺失", `{"other": 1}`, "items", nil},
-		{"节格式坏", `{"items": "not-array"}`, "items", nil},
-		{"节为null", `{"items": null}`, "items", nil},
-		{"节为空数组", `{"items": []}`, "items", []string{}},
-		{"正常读取", `{"items": ["a","b"], "other": 1}`, "items", []string{"a", "b"}},
+		{"文件不存在", "", "items", nil, ErrStoreMissing},
+		{"文件坏JSON", "{bad", "items", nil, ErrUnmarshalFailed},
+		{"节缺失", `{"other": 1}`, "items", nil, ErrStoreMissing},
+		{"节格式坏", `{"items": "not-array"}`, "items", nil, ErrUnmarshalFailed},
+		{"节为null", `{"items": null}`, "items", nil, nil},
+		{"节为空数组", `{"items": []}`, "items", []string{}, nil},
+		{"正常读取", `{"items": ["a","b"], "other": 1}`, "items", []string{"a", "b"}, nil},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -40,14 +43,18 @@ func TestLoadSection(t *testing.T) {
 					t.Fatalf("准备测试文件失败: %v", err)
 				}
 			}
-			got := LoadSection[[]string](file, tt.section)
-			if len(got) != len(tt.want) {
-				t.Fatalf("got %v, want %v", got, tt.want)
-			}
-			for i := range got {
-				if got[i] != tt.want[i] {
-					t.Fatalf("got %v, want %v", got, tt.want)
+			got, err := LoadSection[[]string](file, tt.section)
+			if tt.errIs != nil {
+				if !errors.Is(err, tt.errIs) {
+					t.Fatalf("期望错误 %v，得到 %v", tt.errIs, err)
 				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("不期望报错: %v", err)
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Fatalf("got %v, want %v", got, tt.want)
 			}
 		})
 	}
@@ -59,7 +66,10 @@ func TestSaveSection(t *testing.T) {
 		if err := SaveSection(file, "items", []string{"a"}); err != nil {
 			t.Fatalf("写入失败: %v", err)
 		}
-		got := LoadSection[[]string](file, "items")
+		got, err := LoadSection[[]string](file, "items")
+		if err != nil {
+			t.Fatalf("读回失败: %v", err)
+		}
 		if len(got) != 1 || got[0] != "a" {
 			t.Fatalf("got %v", got)
 		}
@@ -109,7 +119,10 @@ func TestSaveSection(t *testing.T) {
 		if err := SaveSection(file, "items", []string{"b", "c"}); err != nil {
 			t.Fatalf("替换写入失败: %v", err)
 		}
-		got := LoadSection[[]string](file, "items")
+		got, err := LoadSection[[]string](file, "items")
+		if err != nil {
+			t.Fatalf("读回失败: %v", err)
+		}
 		if len(got) != 2 || got[0] != "b" || got[1] != "c" {
 			t.Fatalf("got %v", got)
 		}
@@ -142,9 +155,25 @@ func TestSaveSection(t *testing.T) {
 		if err := SaveSection(file, "items", []string{}); err != nil {
 			t.Fatalf("写入失败: %v", err)
 		}
-		got := LoadSection[[]string](file, "items")
+		got, err := LoadSection[[]string](file, "items")
+		if err != nil {
+			t.Fatalf("读回失败: %v", err)
+		}
 		if got == nil || len(got) != 0 {
 			t.Fatalf("空 slice 应落盘为 []，got %v", got)
+		}
+	})
+
+	t.Run("序列化失败拒写", func(t *testing.T) {
+		file := newFile(t)
+		if err := os.WriteFile(file, []byte(`{"other": 1}`), 0o644); err != nil {
+			t.Fatalf("准备测试文件失败: %v", err)
+		}
+		if err := SaveSection(file, "items", math.NaN()); !errors.Is(err, ErrMarshalFailed) {
+			t.Fatalf("序列化失败应返回 ErrMarshalFailed: %v", err)
+		}
+		if got, err := LoadSection[int](file, "other"); err != nil || got != 1 {
+			t.Fatalf("原文件不应受影响: got=%d err=%v", got, err)
 		}
 	})
 
@@ -191,7 +220,8 @@ func TestLoadSectionOrDefault(t *testing.T) {
 		{"文件不存在返回默认值", "", defaultValue},
 		{"文件坏JSON返回默认值", "{bad", defaultValue},
 		{"节缺失返回默认值", `{"other": 1}`, defaultValue},
-		{"节格式坏返回默认值", `{"items": "not-array"}`, defaultValue}, {"节存在返回实际值", `{"items": ["a"]}`, []string{"a"}},
+		{"节格式坏返回默认值", `{"items": "not-array"}`, defaultValue},
+		{"节存在返回实际值", `{"items": ["a"]}`, []string{"a"}},
 		{"节为空数组返回实际值", `{"items": []}`, []string{}},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -218,11 +248,11 @@ func TestDeleteSection(t *testing.T) {
 		if err := DeleteSection(file, "items"); err != nil {
 			t.Fatalf("删节失败: %v", err)
 		}
-		if got := LoadSection[[]string](file, "items"); got != nil {
-			t.Fatalf("items 节应已删除: %v", got)
+		if _, err := LoadSection[[]string](file, "items"); !errors.Is(err, ErrStoreMissing) {
+			t.Fatalf("items 节应已删除: %v", err)
 		}
-		if got := LoadSection[int](file, "other"); got != 1 {
-			t.Fatalf("other 节不应受影响: %v", got)
+		if got, err := LoadSection[int](file, "other"); err != nil || got != 1 {
+			t.Fatalf("other 节不应受影响: got=%d err=%v", got, err)
 		}
 	})
 
@@ -272,8 +302,14 @@ func TestSaveSectionConcurrent(t *testing.T) {
 		}()
 	}
 	wg.Wait()
-	alpha := LoadSection[[]string](file, "alpha")
-	beta := LoadSection[[]string](file, "beta")
+	alpha, err := LoadSection[[]string](file, "alpha")
+	if err != nil {
+		t.Fatalf("读回 alpha 失败: %v", err)
+	}
+	beta, err := LoadSection[[]string](file, "beta")
+	if err != nil {
+		t.Fatalf("读回 beta 失败: %v", err)
+	}
 	if len(alpha) != 1 || alpha[0] != "v" || len(beta) != 1 || beta[0] != "v" {
 		t.Fatalf("并发写后两节应并存: alpha=%v beta=%v", alpha, beta)
 	}
