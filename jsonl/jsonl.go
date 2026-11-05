@@ -54,3 +54,52 @@ func Append(path string, values ...any) error {
 
 	return nil
 }
+
+// Write 将 values 逐行序列化后整体覆盖写入 path（不存在则创建，父目录自动递归创建）。
+// tmp 文件 + rename 原子替换：中途失败不触碰旧文件，读者看到的要么是旧内容要么是完整新内容；
+// values 为空时写入空文件。先全部序列化成功再落盘，序列化失败不产生副作用。
+func Write(path string, values ...any) error {
+	// 序列化
+	var buf []byte
+	for _, value := range values {
+		line, err := json.Marshal(value)
+		if err != nil {
+			return fmt.Errorf("序列化 JSONL 行失败: %w", err)
+		}
+		buf = append(buf, line...)
+		buf = append(buf, '\n')
+	}
+
+	// 原子写入：tmp 落同目录以保证与目标同文件系统（rename 原子性前提），
+	// 中途失败清理 tmp。
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return fmt.Errorf("创建目标目录失败: %w", err)
+	}
+	tmp, err := os.CreateTemp(dir, "."+filepath.Base(path)+".tmp*")
+	if err != nil {
+		return fmt.Errorf("创建临时文件失败: %w", err)
+	}
+	tmpPath := tmp.Name()
+	defer func() {
+		if tmpPath != "" {
+			_ = tmp.Close()
+			_ = os.Remove(tmpPath)
+		}
+	}()
+
+	if _, err := tmp.Write(buf); err != nil {
+		return fmt.Errorf("写入临时文件失败: %w", err)
+	}
+	if err := tmp.Chmod(0644); err != nil {
+		return fmt.Errorf("设置临时文件权限失败: %w", err)
+	}
+	if err := tmp.Close(); err != nil {
+		return fmt.Errorf("关闭临时文件失败: %w", err)
+	}
+	if err := os.Rename(tmpPath, path); err != nil {
+		return fmt.Errorf("重命名临时文件失败: %w", err)
+	}
+	tmpPath = "" // rename 已接管 tmp，跳过 defer 清理
+	return nil
+}

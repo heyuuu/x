@@ -1,7 +1,8 @@
 // Package jsonl 提供 JSONL（JSON Lines，每行一条 JSON 记录）文件的行式读写原语。
 //
-// 写：O_APPEND 小块写由 POSIX 保证原子，无需跨进程锁（单写者追加语义）；
+// 写：Append 以 O_APPEND 追加，小块写由 POSIX 保证原子，无需跨进程锁（单写者追加语义）；
 // 追加前检测末尾残缺行并自动隔断，坏行不向后续写入传播。
+// Write 整文件覆盖写，tmp + rename 原子替换，中途失败不触碰旧文件。
 //
 // 读：Each / ReverseEach 按正序 / 逆序惰性逐行解码，行长无上限。
 // 坏行产出包装 ErrParse 的错误且不中断迭代；打开、读取等错误终止迭代。
