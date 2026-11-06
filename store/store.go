@@ -5,6 +5,7 @@ package store
 type Store[T any] interface {
 	Save(v T) error
 	Load() (T, error)
+	LoadOrZero() T
 }
 
 // store 用闭包把既有原语适配成 Store。
@@ -15,6 +16,14 @@ type store[T any] struct {
 
 func (s store[T]) Save(v T) error   { return s.save(v) }
 func (s store[T]) Load() (T, error) { return s.load() }
+func (s store[T]) LoadOrZero() T {
+	v, err := s.load()
+	if err != nil {
+		var zero T
+		return zero
+	}
+	return v
+}
 
 // JSONStore 把整文件 JSON 读写（SaveJSON / LoadJSON）适配为 Store。
 func JSONStore[T any](path string) Store[T] {
