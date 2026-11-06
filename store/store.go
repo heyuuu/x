@@ -40,3 +40,32 @@ func SectionStore[T any](file string, section string) Store[T] {
 		load: func() (T, error) { return LoadSection[T](file, section) },
 	}
 }
+
+// WrapperStore 把内部 Store[I] 适配为 Store[O]：Load 经 wrap 转出，Save 经 unwrap 转入。
+func WrapperStore[I, O any](inner Store[I], wrap func(I) (O, error), unwrap func(O) (I, error)) Store[O] {
+	if wrap == nil {
+		panic("store: wrap cannot be nil")
+	}
+	if unwrap == nil {
+		panic("store: unwrap cannot be nil")
+	}
+
+	save := func(out O) error {
+		in, err := unwrap(out)
+		if err != nil {
+			return err
+		}
+		return inner.Save(in)
+	}
+
+	load := func() (O, error) {
+		in, err := inner.Load()
+		if err != nil {
+			var zero O
+			return zero, err
+		}
+		return wrap(in)
+	}
+
+	return store[O]{save: save, load: load}
+}
