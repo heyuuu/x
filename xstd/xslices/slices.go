@@ -25,6 +25,22 @@ func LastIndexFunc[S ~[]E, E any](s S, f func(E) bool) int {
 	return -1
 }
 
+// IndexBy 类似 slices.Index, 不过以 keyOf 计算的 key 判等, 元素本身不可比较时也可用。
+func IndexBy[S ~[]E, E any, K comparable](s S, v E, keyOf func(E) K) int {
+	key := keyOf(v)
+	return slices.IndexFunc(s, func(item E) bool {
+		return keyOf(item) == key
+	})
+}
+
+// LastIndexBy 类似 IndexBy, 不过是反向查找的。
+func LastIndexBy[S ~[]E, E any, K comparable](s S, v E, keyOf func(E) K) int {
+	key := keyOf(v)
+	return LastIndexFunc(s, func(item E) bool {
+		return keyOf(item) == key
+	})
+}
+
 // Map 逐元素映射为新切片。
 func Map[S ~[]E1, E1 any, E2 any](s S, mapper func(E1) E2) []E2 {
 	if len(s) == 0 {

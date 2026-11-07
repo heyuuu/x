@@ -59,6 +59,76 @@ func TestLastIndexFunc(t *testing.T) {
 	}
 }
 
+func TestIndexBy(t *testing.T) {
+	byLen := func(s string) int { return len(s) }
+	tests := []struct {
+		name string
+		s    []string
+		v    string
+		want int
+	}{
+		// 与 slices.Index 的区别所在：按 keyOf 算出的 key 判等，而非元素本身
+		{"按 key 命中首次出现", []string{"a", "bb", "cc", "d"}, "xx", 1},
+		{"v 自身也在切片中", []string{"a", "bb", "cc"}, "bb", 1},
+		{"key 重复取首个", []string{"a", "b", "c"}, "x", 0},
+		{"未命中", []string{"a", "b"}, "xxx", -1},
+		{"空切片", []string{}, "a", -1},
+		{"nil 切片", nil, "a", -1},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := IndexBy(tt.s, tt.v, byLen); got != tt.want {
+				t.Errorf("IndexBy(%v, %q) = %d, want %d", tt.s, tt.v, got, tt.want)
+			}
+		})
+	}
+
+	// 元素本身不可比较时也能按 key 查找
+	byFirst := func(s []int) int { return s[0] }
+	if got := IndexBy([][]int{{1, 2}, {3}, {1, 5}}, []int{1, 9}, byFirst); got != 0 {
+		t.Errorf("IndexBy() 不可比较元素 = %d, want 0", got)
+	}
+
+	if got := IndexBy(ints{3, 1, 3}, 5, func(i int) int { return i % 2 }); got != 0 {
+		t.Errorf("IndexBy() 自定义切片类型 = %d, want 0", got)
+	}
+}
+
+func TestLastIndexBy(t *testing.T) {
+	byLen := func(s string) int { return len(s) }
+	tests := []struct {
+		name string
+		s    []string
+		v    string
+		want int
+	}{
+		// 与 IndexBy 的区别所在：key 重复时取最后一次出现
+		{"key 重复取最后出现", []string{"a", "bb", "cc", "d"}, "xx", 2},
+		{"v 自身也在切片中", []string{"a", "bb", "cc"}, "cc", 2},
+		{"命中末尾元素", []string{"a", "bb", "cc"}, "xx", 2},
+		{"未命中", []string{"a", "b"}, "xxx", -1},
+		{"空切片", []string{}, "a", -1},
+		{"nil 切片", nil, "a", -1},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := LastIndexBy(tt.s, tt.v, byLen); got != tt.want {
+				t.Errorf("LastIndexBy(%v, %q) = %d, want %d", tt.s, tt.v, got, tt.want)
+			}
+		})
+	}
+
+	// 元素本身不可比较时也能按 key 查找
+	byFirst := func(s []int) int { return s[0] }
+	if got := LastIndexBy([][]int{{1, 2}, {3}, {1, 5}}, []int{1, 9}, byFirst); got != 2 {
+		t.Errorf("LastIndexBy() 不可比较元素 = %d, want 2", got)
+	}
+
+	if got := LastIndexBy(ints{3, 1, 3}, 5, func(i int) int { return i % 2 }); got != 2 {
+		t.Errorf("LastIndexBy() 自定义切片类型 = %d, want 2", got)
+	}
+}
+
 func TestMap(t *testing.T) {
 	if got := Map([]int{1, 2, 3}, func(i int) int { return i * 2 }); !slices.Equal(got, []int{2, 4, 6}) {
 		t.Errorf("Map() = %v, want [2 4 6]", got)
