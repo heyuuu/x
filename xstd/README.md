@@ -7,6 +7,7 @@
 | 目录 | 包 | 扩充 |
 | --- | --- | --- |
 | `xmaps/` | `xmaps` | `maps` |
+| `xos/` | `xos` | `os` |
 | `xslices/` | `xslices` | `slices` |
 
 单模块、单版本线，按子包单独引用即可：
