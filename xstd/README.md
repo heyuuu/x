@@ -6,6 +6,7 @@
 
 | 目录 | 包 | 扩充 |
 | --- | --- | --- |
+| `xfilepath/` | `xfilepath` | `path/filepath` |
 | `xmaps/` | `xmaps` | `maps` |
 | `xos/` | `xos` | `os` |
 | `xslices/` | `xslices` | `slices` |
@@ -45,7 +46,6 @@ uniq := xslices.Unique(ids)
 ## 组织原则
 
 - 单模块多子包：所有领域共用 `go.mod` 与一条版本线，避免每个领域独立成模块造成版本碎片化。
-- 不预建空包：某领域函数还很少时先放根包，攒够了再独立成 `xP` 子包。
 
 ## 版本策略
 
