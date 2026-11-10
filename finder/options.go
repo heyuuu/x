@@ -48,6 +48,22 @@ func OptionFilter(filter func(FileEntry) bool) Option {
 	}
 }
 
+// IgnoreMatcher 判定一个条目是否应被忽略。path 为条目相对遍历根的 "/" 分隔路径
+// （即 FileEntry.RelPath），isDir 即 FileEntry.IsDir。接口形状与
+// github.com/heyuuu/x/gitignore 的 Matcher 一致，其匹配器可直接传入；
+// 本包不依赖该模块。按 .gitignore 规则过滤的用法见包文档。
+type IgnoreMatcher interface {
+	Match(path string, isDir bool) bool
+}
+
+// OptionIgnore 增加一个忽略匹配器，命中的条目被跳过；目录命中时其子树整棵剪掉，
+// 不再读取，也不再就其子孙询问匹配器。可多次调用，任一匹配器命中即跳过。
+func OptionIgnore(matcher IgnoreMatcher) Option {
+	return OptionFilter(func(entry FileEntry) bool {
+		return !matcher.Match(entry.RelPath(), entry.IsDir())
+	})
+}
+
 // entryKind 表示匹配的条目类型。
 type entryKind int
 

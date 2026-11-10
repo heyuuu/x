@@ -21,7 +21,8 @@ var vcsDirs = map[string]bool{
 
 // Find 返回遍历 root 得到的序列（不包含根目录本身，默认包含文件和目录，
 // 可用 OptionFiles / OptionDirectories 收窄）。root 只支持绝对路径，相对路径会产出 ErrRelativePath。
-// 序列是惰性的，只在迭代时执行；调用方自行决定排序、去重、过滤（如按 .gitignore 规则）等后续处理。
+// 序列是惰性的，只在迭代时执行；调用方自行决定排序、去重等后续处理，
+// 按忽略规则（如 .gitignore）过滤见 OptionIgnore。
 //
 // 产出的路径（Name/AbsPath/RelPath）一律是遍历到达时的逻辑路径：root 按传入值（仅做 Clean），
 // 符号链接按链接自身的路径，不解析为目标路径；root 是符号链接时同样以传入值为前缀。

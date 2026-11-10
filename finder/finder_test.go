@@ -293,6 +293,92 @@ func TestFindEarlyBreak(t *testing.T) {
 	}
 }
 
+// recordingMatcher 是测试用 IgnoreMatcher：按 ignored 判定，并记录每次被询问的入参
+// （路径，目录带尾随 "/"，与 git check-ignore 的展示习惯一致）。
+type recordingMatcher struct {
+	ignored func(path string, isDir bool) bool
+	calls   []string
+}
+
+func (m *recordingMatcher) Match(path string, isDir bool) bool {
+	call := path
+	if isDir {
+		call += "/"
+	}
+	m.calls = append(m.calls, call)
+	return m.ignored(path, isDir)
+}
+
+// TestOptionIgnore pins 住忽略匹配器的接入语义：匹配器收到相对遍历根的 "/" 分隔路径
+// 与条目的 IsDir；命中的条目被跳过；目录命中时整棵子树剪掉且不再就其子孙询问匹配器；
+// 与 OptionFiles 组合时剪枝同样生效。
+func TestOptionIgnore(t *testing.T) {
+	root := absDir(t, "testdata/basic")
+
+	t.Run("matcher receives RelPath and IsDir", func(t *testing.T) {
+		matcher := &recordingMatcher{ignored: func(string, bool) bool { return false }}
+		paths, firstErr := collectPaths(t, root, []Option{OptionIgnore(matcher)})
+		if firstErr != nil {
+			t.Fatal(firstErr)
+		}
+		if want := []string{"a.txt", "dir", "dir/b.txt", "dir/sub", "dir/sub/c.txt"}; !slices.Equal(paths, want) {
+			t.Fatalf("got %v, want %v", paths, want)
+		}
+		if want := []string{"a.txt", "dir/", "dir/b.txt", "dir/sub/", "dir/sub/c.txt"}; !slices.Equal(matcher.calls, want) {
+			t.Fatalf("calls: got %v, want %v", matcher.calls, want)
+		}
+	})
+
+	t.Run("ignored file is skipped", func(t *testing.T) {
+		matcher := &recordingMatcher{ignored: func(path string, _ bool) bool { return path == "dir/b.txt" }}
+		paths, firstErr := collectPaths(t, root, []Option{OptionIgnore(matcher)})
+		if firstErr != nil {
+			t.Fatal(firstErr)
+		}
+		if want := []string{"a.txt", "dir", "dir/sub", "dir/sub/c.txt"}; !slices.Equal(paths, want) {
+			t.Fatalf("got %v, want %v", paths, want)
+		}
+	})
+
+	t.Run("ignored dir prunes subtree", func(t *testing.T) {
+		// pins：目录命中后其子孙不再产出，也不再询问匹配器（calls 中不出现 dir/sub 之下）。
+		matcher := &recordingMatcher{ignored: func(path string, isDir bool) bool { return path == "dir/sub" && isDir }}
+		paths, firstErr := collectPaths(t, root, []Option{OptionIgnore(matcher)})
+		if firstErr != nil {
+			t.Fatal(firstErr)
+		}
+		if want := []string{"a.txt", "dir", "dir/b.txt"}; !slices.Equal(paths, want) {
+			t.Fatalf("got %v, want %v", paths, want)
+		}
+		if want := []string{"a.txt", "dir/", "dir/b.txt", "dir/sub/"}; !slices.Equal(matcher.calls, want) {
+			t.Fatalf("calls: got %v, want %v", matcher.calls, want)
+		}
+	})
+
+	t.Run("prunes even when only files are yielded", func(t *testing.T) {
+		matcher := &recordingMatcher{ignored: func(path string, isDir bool) bool { return path == "dir" && isDir }}
+		paths, firstErr := collectPaths(t, root, []Option{OptionFiles(), OptionIgnore(matcher)})
+		if firstErr != nil {
+			t.Fatal(firstErr)
+		}
+		if want := []string{"a.txt"}; !slices.Equal(paths, want) {
+			t.Fatalf("got %v, want %v", paths, want)
+		}
+	})
+
+	t.Run("multiple matchers any match ignores", func(t *testing.T) {
+		fileMatcher := &recordingMatcher{ignored: func(path string, _ bool) bool { return path == "a.txt" }}
+		dirMatcher := &recordingMatcher{ignored: func(path string, isDir bool) bool { return path == "dir/sub" && isDir }}
+		paths, firstErr := collectPaths(t, root, []Option{OptionIgnore(fileMatcher), OptionIgnore(dirMatcher)})
+		if firstErr != nil {
+			t.Fatal(firstErr)
+		}
+		if want := []string{"dir", "dir/b.txt"}; !slices.Equal(paths, want) {
+			t.Fatalf("got %v, want %v", paths, want)
+		}
+	})
+}
+
 // TestFollowLinks pins 住符号链接行为：
 // 跟随时目录链接下钻且路径按链接路径（逻辑路径）产出、文件链接按目标类型产出、
 // 断链按链接自身产出、成环不无限递归、指向根外的链接 RelPath 不出现 ".."；
