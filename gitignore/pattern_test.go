@@ -75,3 +75,51 @@ func TestPatternMatch(t *testing.T) {
 		})
 	}
 }
+
+// TestPatternMatchExact pin 住 matchExact 只对路径自身求值：pattern 必须恰好落在
+// 整条路径上，命中祖先段不连带子孙（对照 TestPatternMatch 中的 covers subtree 用例）。
+func TestPatternMatchExact(t *testing.T) {
+	tests := []struct {
+		name    string
+		pattern string
+		domain  string
+		path    string
+		isDir   bool
+		want    matchResult
+	}{
+		// 不含 /：只按末段（条目名）匹配
+		{name: "plain name matches entry at any level", pattern: "frotz", path: "a/frotz", isDir: false, want: exclude},
+		{name: "plain name rejects descendant", pattern: "frotz", path: "a/frotz/x", isDir: false, want: noMatch},
+		{name: "dir only matches dir", pattern: "frotz/", path: "a/frotz", isDir: true, want: exclude},
+		{name: "dir only rejects file", pattern: "frotz/", path: "a/frotz", isDir: false, want: noMatch},
+		{name: "dir only rejects descendant", pattern: "frotz/", path: "a/frotz/x", isDir: false, want: noMatch},
+
+		// 含 /：锚定，须耗尽整条路径
+		{name: "anchored path matches itself", pattern: "a/b", path: "a/b", isDir: false, want: exclude},
+		{name: "anchored path rejects descendant", pattern: "a/b", path: "a/b/c", isDir: false, want: noMatch},
+		{name: "anchored dir only rejects file", pattern: "a/b/", path: "a/b", isDir: false, want: noMatch},
+		{name: "trailing double star matches any depth inside", pattern: "abc/**", path: "abc/x/y", isDir: false, want: exclude},
+		{name: "trailing double star rejects dir itself", pattern: "abc/**", path: "abc", isDir: true, want: noMatch},
+		{name: "middle double star rejects descendant", pattern: "a/**/b", path: "a/x/b/c", isDir: false, want: noMatch},
+
+		// 否定模式同样只命中路径自身
+		{name: "negation includes matched path", pattern: "!sub/", path: "sub", isDir: true, want: include},
+		{name: "negation rejects descendant", pattern: "!sub/", path: "sub/x", isDir: false, want: noMatch},
+
+		// domain：剥离后再按上述规则匹配
+		{name: "domain prefix is stripped", pattern: "foo", domain: "a", path: "a/b/foo", isDir: false, want: exclude},
+		{name: "domain rejects descendant", pattern: "foo", domain: "a", path: "a/foo/b", isDir: false, want: noMatch},
+		{name: "domain mismatch rejects", pattern: "foo", domain: "a", path: "b/foo", isDir: false, want: noMatch},
+		{name: "path no deeper than domain rejects", pattern: "*", domain: "a", path: "a", isDir: true, want: noMatch},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := parsePattern(tt.pattern, tt.domain).matchExact(tt.path, tt.isDir)
+			if got != tt.want {
+				t.Fatalf("parsePattern(%q, %q).matchExact(%q, %v) = %v, want %v",
+					tt.pattern, tt.domain, tt.path, tt.isDir, got, tt.want)
+			}
+		})
+	}
+}

@@ -107,6 +107,57 @@ func TestAutoloadMatcher(t *testing.T) {
 		}
 	})
 
+	t.Run("negation re-includes only the matched path", func(t *testing.T) {
+		// pins：! 只重新包含命中的路径自身，不连带其子孙。白名单写法（* 排除一切，
+		// !*/ 放行目录，!*.go 放行 Go 文件）下，目录被重新包含后，其中的文件仍各自
+		// 由 * 排除，除非自身被 ! 命中。行为与 git check-ignore 实测一致。
+		files := memFS{".gitignore": "*\n!*/\n!*.go\n"}
+		matcher := NewAutoloadMatcher(files)
+
+		if matcher.Match("cmd", true) || matcher.Match("cmd/x", true) {
+			t.Fatal("目录应被 !*/ 重新包含")
+		}
+		if matcher.Match("cmd/x/main.go", false) {
+			t.Fatal("cmd/x/main.go 应被 !*.go 重新包含")
+		}
+		if !matcher.Match("cmd/x/binary", false) {
+			t.Fatal("cmd/x/binary 应被 * 排除：!*/ 只重新包含目录自身，不连带其中的文件")
+		}
+		if !matcher.Match("top.bin", false) {
+			t.Fatal("top.bin 应被 * 排除")
+		}
+	})
+
+	t.Run("deep negation does not leak into descendants", func(t *testing.T) {
+		// pins：深层 .gitignore 的 ! 命中某目录时，不会连带压过浅层规则对该目录子孙的排除。
+		files := memFS{
+			".gitignore":   "docs\n",
+			"a/.gitignore": "!?\n",
+		}
+		matcher := NewAutoloadMatcher(files)
+
+		if matcher.Match("a/b", true) {
+			t.Fatal("a/b 不应被忽略")
+		}
+		if !matcher.Match("a/b/docs", false) {
+			t.Fatal("a/b/docs 应被根 docs 排除：!? 命中的是目录 b 自身，不连带其子孙")
+		}
+	})
+
+	t.Run("re-included dir frees its descendants", func(t *testing.T) {
+		// pins：目录被 ! 重新包含后，先前排除它的 pattern 不再牵连其子孙
+		// （排除 pattern 同样只对路径自身求值）。
+		files := memFS{".gitignore": "build\n!build\n"}
+		matcher := NewAutoloadMatcher(files)
+
+		if matcher.Match("build", true) {
+			t.Fatal("build 应被 !build 重新包含")
+		}
+		if matcher.Match("build/x", false) {
+			t.Fatal("build/x 不应被忽略：build 已被重新包含，x 自身不命中任何 pattern")
+		}
+	})
+
 	t.Run("no gitignore means nothing ignored", func(t *testing.T) {
 		matcher := NewAutoloadMatcher(memFS{})
 		if matcher.Match("a/b.log", false) {

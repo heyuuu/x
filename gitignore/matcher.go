@@ -40,7 +40,8 @@ func (s StaticMatcher) Match(path string, isDir bool) bool {
 
 // AutoloadMatcher 在判定时经 fs 按需加载路径各级祖先目录的 .gitignore（含根）
 // 并缓存；同时自根向叶逐级判定祖先目录，任一祖先被排除即整体忽略，
-// 等价 git check-ignore 语义：父目录被排除后，! 否定模式无法重新包含其子孙。
+// 等价 git check-ignore 语义：父目录被排除后，! 否定模式无法重新包含其子孙；
+// 每一级只对该级路径自身求值，! 只重新包含命中的路径自身、不连带其子孙。
 type AutoloadMatcher struct {
 	fs       FS
 	base     []*pattern
@@ -74,9 +75,11 @@ func (a *AutoloadMatcher) Match(path string, isDir bool) bool {
 
 	// 自根向叶单趟推进：逐级并入祖先目录（path[:cut] 为目录前缀子串，零分配）
 	// 的 pattern，并判定当前前缀是否作为目录被排除。pattern 顺序为
-	// base → 根 → 深层，matchPatterns 逆序取最后命中，即深层 .gitignore
+	// base → 根 → 深层，matchPatternsExact 逆序取最后命中，即深层 .gitignore
 	// 覆盖浅层、同一文件内 last-match-wins；.gitignore 不存在或不可读视为
 	// 无 pattern，结果同样缓存。
+	// 每一级只对该级路径自身求值（matchExact）：子树的忽略已由逐级判定承担，
+	// 若 pattern 再连带命中祖先段，祖先层级的结果会串到子孙层级。
 	patterns := slices.Clone(a.base)
 	cut := 0 // 当前目录前缀（含若干整段，不含尾分隔符）的末尾偏移
 	for {
@@ -90,20 +93,31 @@ func (a *AutoloadMatcher) Match(path string, isDir bool) bool {
 
 		idx := strings.IndexByte(path[cut+1:], '/')
 		if idx < 0 {
-			return matchPatterns(patterns, path, isDir) == exclude
+			return matchPatternsExact(patterns, path, isDir) == exclude
 		}
 		end := cut + 1 + idx // 判定中的祖先前缀（含当前段）的末尾
-		if matchPatterns(patterns, path[:end], true) == exclude {
+		if matchPatternsExact(patterns, path[:end], true) == exclude {
 			return true
 		}
 		cut = end
 	}
 }
 
-// matchPatterns 在 pattern 列表上判定，取最后一个命中的结果（last-match-wins）。
+// matchPatterns 在 pattern 列表上判定，取最后一个命中的结果（last-match-wins）；
+// 各 pattern 带子树覆盖（见 pattern.match）。
 func matchPatterns(patterns []*pattern, path string, isDir bool) matchResult {
 	for i := len(patterns) - 1; i >= 0; i-- {
 		if match := patterns[i].match(path, isDir); match != noMatch {
+			return match
+		}
+	}
+	return noMatch
+}
+
+// matchPatternsExact 同 matchPatterns，但各 pattern 只对 path 自身求值（见 pattern.matchExact）。
+func matchPatternsExact(patterns []*pattern, path string, isDir bool) matchResult {
+	for i := len(patterns) - 1; i >= 0; i-- {
+		if match := patterns[i].matchExact(path, isDir); match != noMatch {
 			return match
 		}
 	}

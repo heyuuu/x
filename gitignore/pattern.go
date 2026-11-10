@@ -27,23 +27,52 @@ type pattern struct {
 	isGlob    bool
 }
 
-// match 判定 path 是否命中本规则。path 必须是规范路径，由调用方归一化。
+// match 判定 path 是否命中本规则，命中 path 的祖先段时视为整棵子树命中（子树覆盖）。
+// 供不逐级判定祖先的调用方使用。path 必须是规范路径，由调用方归一化。
 func (p *pattern) match(path string, isDir bool) matchResult {
-	var rel string
-	if p.domain == "" {
-		rel = path
-	} else if len(path) > len(p.domain) && path[len(p.domain)] == '/' && path[:len(p.domain)] == p.domain {
-		rel = path[len(p.domain)+1:]
-	} else {
+	rel, ok := p.trimDomain(path)
+	if !ok {
 		return noMatch
 	}
 
-	var matched bool
 	if p.isGlob {
-		matched = p.globMatch(rel, isDir)
-	} else {
-		matched = p.simpleNameMatch(rel, isDir)
+		return p.result(p.globMatch(rel, isDir))
 	}
+	return p.result(p.simpleNameMatch(rel, isDir))
+}
+
+// matchExact 判定 path 自身是否命中本规则：pattern 必须恰好落在整条路径上，
+// 不因命中祖先段而连带命中其子孙（对照 match 的子树覆盖），等价 git 对单个路径的求值。
+// 供逐级判定祖先的调用方使用：各层级各自 last-match-wins，子树覆盖会把祖先层级的
+// 命中带到子孙层级，压过本该对子孙生效的 pattern——如 "*" + "!*/"，"!*/" 重新包含
+// 目录 sub 后，sub/x 仍应由 "*" 排除。path 必须是规范路径，由调用方归一化。
+func (p *pattern) matchExact(path string, isDir bool) matchResult {
+	rel, ok := p.trimDomain(path)
+	if !ok || (p.dirOnly && !isDir) {
+		return noMatch
+	}
+
+	if p.isGlob {
+		return p.result(matchSegments(p.segments, rel))
+	}
+	// 不含 "/" 的 pattern 只按末段（条目名）匹配。
+	return p.result(matchSegment(p.segments[0], rel[strings.LastIndexByte(rel, '/')+1:]))
+}
+
+// trimDomain 剥离 path 的 domain 前缀，返回相对 pattern 所属目录的路径；
+// path 不在 domain 之内（含恰为 domain 本身）时 ok 为 false。
+func (p *pattern) trimDomain(path string) (rel string, ok bool) {
+	if p.domain == "" {
+		return path, true
+	}
+	if len(path) > len(p.domain) && path[len(p.domain)] == '/' && path[:len(p.domain)] == p.domain {
+		return path[len(p.domain)+1:], true
+	}
+	return "", false
+}
+
+// result 将是否命中换算为判定结果：命中时按是否否定模式给出 include / exclude。
+func (p *pattern) result(matched bool) matchResult {
 	if !matched {
 		return noMatch
 	}
