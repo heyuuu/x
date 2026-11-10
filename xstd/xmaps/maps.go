@@ -26,6 +26,7 @@ func Values[M ~map[K]V, K comparable, V any](m M) []V {
 }
 
 // SortedKeys 以 slice 形式返回所有键，结果按默认规则排序
+// 等价于 slices.Sorted(maps.Keys(m))
 func SortedKeys[M ~map[K]V, K cmp.Ordered, V any](m M) []K {
 	keys := Keys(m)
 	slices.Sort(keys)
