@@ -28,16 +28,16 @@ func LastIndexFunc[S ~[]E, E any](s S, f func(E) bool) int {
 // IndexBy 类似 slices.Index, 不过以 keyOf 计算的 key 判等, 元素本身不可比较时也可用。
 func IndexBy[S ~[]E, E any, K comparable](s S, v E, keyOf func(E) K) int {
 	key := keyOf(v)
-	return slices.IndexFunc(s, func(item E) bool {
-		return keyOf(item) == key
+	return slices.IndexFunc(s, func(elem E) bool {
+		return keyOf(elem) == key
 	})
 }
 
 // LastIndexBy 类似 IndexBy, 不过是反向查找的。
 func LastIndexBy[S ~[]E, E any, K comparable](s S, v E, keyOf func(E) K) int {
 	key := keyOf(v)
-	return LastIndexFunc(s, func(item E) bool {
-		return keyOf(item) == key
+	return LastIndexFunc(s, func(elem E) bool {
+		return keyOf(elem) == key
 	})
 }
 
@@ -48,8 +48,8 @@ func Map[S ~[]E1, E1 any, E2 any](s S, mapper func(E1) E2) []E2 {
 	}
 
 	result := make([]E2, len(s))
-	for i, item := range s {
-		result[i] = mapper(item)
+	for i, elem := range s {
+		result[i] = mapper(elem)
 	}
 	return result
 }
@@ -61,9 +61,9 @@ func Filter[S ~[]E, E any](s S, filter func(E) bool) []E {
 	}
 
 	result := make([]E, 0, len(s))
-	for _, item := range s {
-		if filter(item) {
-			result = append(result, item)
+	for _, elem := range s {
+		if filter(elem) {
+			result = append(result, elem)
 		}
 	}
 	return result
@@ -76,8 +76,8 @@ func FilterMap[S ~[]E1, E1 any, E2 any](s S, f func(E1) (E2, bool)) []E2 {
 	}
 
 	result := make([]E2, 0, len(s))
-	for _, item := range s {
-		if r, ok := f(item); ok {
+	for _, elem := range s {
+		if r, ok := f(elem); ok {
 			result = append(result, r)
 		}
 	}
@@ -91,8 +91,8 @@ func FlatMap[S ~[]E1, E1 any, E2 any](s S, f func(E1) []E2) []E2 {
 	}
 
 	result := make([][]E2, 0, len(s))
-	for _, item := range s {
-		result = append(result, f(item))
+	for _, elem := range s {
+		result = append(result, f(elem))
 	}
 	return slices.Concat(result...)
 }
@@ -105,10 +105,10 @@ func Unique[S ~[]E, E comparable](s S) []E {
 
 	seen := make(map[E]struct{}, len(s))
 	result := make([]E, 0, len(s))
-	for _, item := range s {
-		if _, ok := seen[item]; !ok {
-			seen[item] = struct{}{}
-			result = append(result, item)
+	for _, elem := range s {
+		if _, ok := seen[elem]; !ok {
+			seen[elem] = struct{}{}
+			result = append(result, elem)
 		}
 	}
 	return result
@@ -122,11 +122,11 @@ func UniqueBy[S ~[]E, E any, K comparable](s S, f func(E) K) []E {
 
 	seen := make(map[K]struct{}, len(s))
 	result := make([]E, 0, len(s))
-	for _, item := range s {
-		key := f(item)
+	for _, elem := range s {
+		key := f(elem)
 		if _, ok := seen[key]; !ok {
 			seen[key] = struct{}{}
-			result = append(result, item)
+			result = append(result, elem)
 		}
 	}
 	return result
