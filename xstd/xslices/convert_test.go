@@ -69,6 +69,65 @@ func TestToBoolSet(t *testing.T) {
 	}
 }
 
+func TestFilterToSet(t *testing.T) {
+	// 保留长度为偶数的字符串，key 为长度
+	evenLen := func(s string) (int, bool) { return len(s), len(s)%2 == 0 }
+	tests := []struct {
+		name string
+		s    []string
+		f    func(string) (int, bool)
+		want []int // 期望的集合内容（以排序后的 key 表达）
+	}{
+		{"过滤后重复 key 自然去重", []string{"a", "bb", "cc", "d"}, evenLen, []int{2}},
+		{"全部保留", []string{"bb", "cccc"}, evenLen, []int{2, 4}},
+		{"全部过滤", []string{"a", "ccc"}, evenLen, nil},
+		{"空切片", []string{}, evenLen, nil},
+		{"nil 切片", nil, evenLen, nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			set := FilterToSet(tt.s, tt.f)
+			if got := slices.Sorted(maps.Keys(set)); !slices.Equal(got, tt.want) {
+				t.Errorf("FilterToSet(%v) 的 key = %v, want %v", tt.s, got, tt.want)
+			}
+		})
+	}
+
+	if got := FilterToSet(ints{2, 4, 3}, func(i int) (int, bool) { return i, i%2 == 0 }); !slices.Equal(slices.Sorted(maps.Keys(got)), []int{2, 4}) {
+		t.Errorf("FilterToSet() 自定义切片类型 = %v, want [2 4]", got)
+	}
+}
+
+func TestFilterToBoolSet(t *testing.T) {
+	// 保留长度为偶数的字符串，key 为长度
+	evenLen := func(s string) (int, bool) { return len(s), len(s)%2 == 0 }
+	t.Run("过滤后存在的 key 为 true", func(t *testing.T) {
+		set := FilterToBoolSet([]string{"a", "bb", "ccc"}, evenLen)
+		if !set[2] || len(set) != 1 {
+			t.Errorf("FilterToBoolSet() = %v, want {2:true}", set)
+		}
+	})
+	t.Run("被过滤的 key 不存在", func(t *testing.T) {
+		set := FilterToBoolSet([]string{"a", "bb"}, evenLen)
+		if set[1] || set[3] {
+			t.Errorf("FilterToBoolSet() 中被过滤的 key 不应存在, got %v", set)
+		}
+	})
+	t.Run("空与 nil 切片", func(t *testing.T) {
+		if got := FilterToBoolSet([]string{}, evenLen); len(got) != 0 {
+			t.Errorf("FilterToBoolSet() 空切片 = %v, want 空 map", got)
+		}
+		var nilSlice []string
+		if got := FilterToBoolSet(nilSlice, evenLen); len(got) != 0 {
+			t.Errorf("FilterToBoolSet() nil 切片 = %v, want 空 map", got)
+		}
+	})
+
+	if got := FilterToBoolSet(ints{2, 4, 3}, func(i int) (bool, bool) { return i%2 == 0, i%2 == 0 }); !got[true] || len(got) != 1 {
+		t.Errorf("FilterToBoolSet() 自定义切片类型 = %v, want {true:true}", got)
+	}
+}
+
 func TestToMap(t *testing.T) {
 	lenOf := func(s string) (int, string) { return len(s), s }
 	tests := []struct {
