@@ -13,6 +13,7 @@
 
 | 想要的能力 | 标准库 | 起 |
 | --- | --- | --- |
+| 大小写转换（全 Unicode） | `strings.ToLower` / `strings.ToUpper` | 1.0 |
 | 多值兜底（返回第一个非零值） | `cmp.Or` | 1.22 |
 | 拼接多个切片 | `slices.Concat` | 1.22 |
 | 切片分块遍历 | `slices.Chunk`（迭代器） | 1.24 |

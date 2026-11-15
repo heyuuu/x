@@ -6,10 +6,12 @@
 
 | 目录 | 包 | 扩充 |
 | --- | --- | --- |
+| `ascii/` | `ascii` | `unicode`（仅 ASCII 范围） |
 | `xfilepath/` | `xfilepath` | `path/filepath` |
 | `xmaps/` | `xmaps` | `maps` |
 | `xos/` | `xos` | `os` |
 | `xslices/` | `xslices` | `slices` |
+| `xstrings/` | `xstrings` | `strings` |
 
 单模块、单版本线，按子包单独引用即可：
 
