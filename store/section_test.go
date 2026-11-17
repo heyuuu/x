@@ -1,6 +1,7 @@
 package store
 
 import (
+	"bytes"
 	"encoding/json/jsontext"
 	"encoding/json/v2"
 	"errors"
@@ -206,6 +207,33 @@ func TestSaveSection(t *testing.T) {
 		}
 		if !strings.Contains(string(data), "\n  \"items\"") {
 			t.Fatalf("非两空格缩进:\n%s", data)
+		}
+	})
+
+	t.Run("map 键跨保存字节稳定", func(t *testing.T) {
+		file := newFile(t)
+		m := map[string]string{"c": "3", "a": "1", "b": "2"}
+		if err := SaveSection(file, "items", m); err != nil {
+			t.Fatalf("写入失败: %v", err)
+		}
+		first, err := os.ReadFile(file)
+		if err != nil {
+			t.Fatalf("读取落盘文件失败: %v", err)
+		}
+		if err := SaveSection(file, "items", m); err != nil {
+			t.Fatalf("二次写入失败: %v", err)
+		}
+		second, err := os.ReadFile(file)
+		if err != nil {
+			t.Fatalf("读取落盘文件失败: %v", err)
+		}
+		if !bytes.Equal(first, second) {
+			t.Fatalf("同一 map 两次落盘字节不一致（键未按确定性排序）:\n%s\n---\n%s", first, second)
+		}
+		for _, kv := range [][2]string{{"a", "b"}, {"b", "c"}} {
+			if strings.Index(string(first), `"`+kv[0]+`"`) > strings.Index(string(first), `"`+kv[1]+`"`) {
+				t.Fatalf("map 键 %s 应排在 %s 之前:\n%s", kv[0], kv[1], first)
+			}
 		}
 	})
 }

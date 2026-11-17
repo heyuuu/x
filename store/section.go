@@ -36,7 +36,9 @@ func SaveSection(path string, section string, v any) error {
 	if isNilValue(v) {
 		delete(d, section)
 	} else {
-		raw, err := json.Marshal(v)
+		// 节值必须同样走 saveOpts：Deterministic 不穿透 jsontext.Value，
+		// 内层漏传时 map 键按随机遍历序落盘，外层排序只覆盖 doc 顶层节名
+		raw, err := json.Marshal(v, saveOpts...)
 		if err != nil {
 			return sectionMarshalFailed(path, section, err)
 		}
